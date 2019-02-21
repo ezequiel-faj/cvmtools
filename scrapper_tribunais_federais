@@ -7,7 +7,7 @@ from selenium import webdriver
 from selenium.webdriver.support.ui import Select
 import re
 
-termo = 'CVM'
+termo = 'ação civil pública'
 
 def parser(sp):
     global coleta
@@ -70,6 +70,6 @@ while pagina_atual < total_paginas:
     
 df = pd.DataFrame(coleta)
 df.index.name = 'index'
-df.to_csv(r'D:\Onedrive\Projetos\CVM\Dataframes\jurisprudencia\tribunais_federais\%s.csv' %termo)
+df.to_csv(r'D:\Onedrive\Projetos\CVM\Dataframes\jurisprudencia\tribunais_federais\%s.csv' %termo.replace('"',''))
     
 
