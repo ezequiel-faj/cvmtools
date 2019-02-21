@@ -1,0 +1,112 @@
+import requests
+from bs4 import BeautifulSoup as bs
+import pandas as pd
+import progressbar
+import time
+import re
+import progressbar
+
+s = requests.session()
+url = 'http://www.tjrj.jus.br/search'
+
+def parser(sp):
+    global coleta
+    
+    
+    for entrada in sp.findAll('table', attrs={'id': 'table_resultado'}):
+        res = {}
+
+        for linha in entrada.findAll('td', attrs={'colspan':'3'})[6:]:
+            if ['larguraPrimColuna'] in linha.attrs.values():
+                res['titulo'] = linha.find('b').get_text()
+                res['numero'] = linha.find('a').get_text()
+                res['titulo1'] = linha.find('span').find('span').get_text().strip()
+            elif linha.find_next().get_text() == 'Ementa':
+                res['julgador'] = linha.find('br').next.strip()
+                res['orgao'] = linha.find('span').next.next.strip()
+
+            elif 'id' in linha.attrs.keys() and linha.get('id') == 'ementaRes':
+                res['ementa'] = linha.find('span', attrs={'class':'firstEmenta'}).next + linha.find('span', attrs={'class':'hidden secondEmenta'}).next
+                res['ementa'] = re.sub('\s\s+', ' ', res['ementa'])
+
+            elif linha.get_text().strip() == 'Carregando mais informações...':
+                pass
+
+            elif 'a' in [i.name for i in linha.findChildren()]:
+                res['link_decisao'] = linha.find('a').get('href')
+            else:
+                return linha
+                print('break')
+
+        coleta += [res]
+
+
+payload = {
+'processType': 'cnj',
+'site': 'juris',
+'client': 'juris',
+'output': 'xml_no_dtd',
+'proxystylesheet': 'juris',
+'entqrm': '0',
+'oe': 'UTF-8',
+'ie': 'UTF-8',
+'ud': '1',
+'exclude_apps': '1',
+'filter': '0',
+'getfields': '*',
+'ulang': 'pt-BR',
+'lr': 'lang_pt',
+'sort': 'date:D:S:d1',
+'partialfields': '(ctd:1|ctd:2)',
+'as_q': ''}
+
+
+
+termo = 'cvm'
+payload['q'] = termo
+
+coleta = []
+
+r = s.get(url, params=payload)
+
+sp = bs(r.content, 'html5lib')
+parser(sp)
+
+
+payload['ip'] = sp.find('body').get('onload')
+payload['ip'] = re.search(r'&ip=(.*?)&',payload['ip']).group(1)
+payload['access'] = 'p'
+payload['entqr'] = '3'
+
+payload['start'] = 10
+
+a = sp.find('span', attrs={'class':'infoPesquisa'}).findNext('b').findNext('b').findNext('b')
+b = sp.find('span', attrs={'class':'infoPesquisa'}).findNext('b').findNext('b')
+
+
+
+while a != b:
+    
+    r = s.get(url, params=payload)
+    sp = bs(r.content, 'html5lib')
+    
+    a = sp.find('span', attrs={'class':'infoPesquisa'}).findNext('b').findNext('b').findNext('b')
+    b = sp.find('span', attrs={'class':'infoPesquisa'}).findNext('b').findNext('b')
+
+    if a != b:
+        while len(sp.findAll('table', attrs={'id': 'table_resultado'})) > 10:
+            print('falha', len(sp.findAll('table', attrs={'id': 'table_resultado'})))
+            time.sleep(1)
+            r = s.get(url, params=payload)
+            sp = bs(r.content, 'html5lib')
+
+    
+    
+    x = parser(sp)
+    
+    payload['start'] += 10
+    print(len(coleta))
+    time.sleep(1)
+    
+    
+    
