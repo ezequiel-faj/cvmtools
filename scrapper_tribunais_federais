@@ -1,0 +1,75 @@
+import requests
+from bs4 import BeautifulSoup as bs
+import pandas as pd
+import progressbar
+import time
+from selenium import webdriver
+from selenium.webdriver.support.ui import Select
+import re
+
+termo = 'CVM'
+
+def parser(sp):
+    global coleta
+    
+    while len(sp.findAll('table', attrs={'class':'table_pesquisa_lista'})) ==0:
+        time.sleep(1)
+        sp = bs(driver.page_source, 'html5lib')
+        
+    
+    for entrada in sp.findAll('table', attrs={'class':'table_pesquisa_lista'}):
+        res = {}
+        res['titulo_doc'] = entrada.find('td', attrs={'class': 'titulo_doc'}).get_text().strip()
+        for linha in entrada.findAll('span', attrs={'class': 'label_pontilhada'}):
+            res[linha.get_text().strip()] = linha.findNext('td').get_text().strip()
+
+        coleta += [res]
+
+driver = webdriver.Chrome(r'C:\conda3\webdriver\chromedriver.exe')
+driver.get('https://www2.cjf.jus.br/jurisprudencia/unificada/index.xhtml')
+
+driver.find_element_by_xpath(r'//*[@id="formulario:checkTodos"]/div[2]/span').click()
+time.sleep(0.5)
+driver.find_element_by_xpath(r'//*[@id="formulario:todasTRUs"]/div[2]/span').click()
+time.sleep(0.5)
+driver.find_element_by_xpath(r'//*[@id="formulario:todasTRs"]/div[2]/span').click()
+driver.find_element_by_xpath(r'//*[@id="formulario:textoLivre"]').send_keys(termo)
+time.sleep(1)
+driver.find_element_by_xpath(r'//*[@id="formulario:actPesquisar"]/span').click()
+select = Select(driver.find_element_by_xpath(r'//*[@id="formulario:tabelaDocumentos:j_id42"]'))
+select.select_by_visible_text('50')
+
+sp = bs(driver.page_source, 'html5lib')
+rp = sp.find('span', attrs={'class' :'ui-paginator-current'}).get_text()
+
+while re.search(r'-\s(\d+)', rp).group(1) != '50':
+    time.sleep(1)
+    sp = bs(driver.page_source, 'html5lib')
+    rp = sp.find('span', attrs={'class' :'ui-paginator-current'}).get_text()
+
+coleta = []
+
+rp = sp.find('span', attrs={'class' :'ui-paginator-current'}).get_text()
+total_paginas = int(re.search(r'/(\d+)', rp).group(1))
+pagina_atual = 1
+
+parser(sp)
+
+while pagina_atual < total_paginas:
+    print(pagina_atual, '//', len(coleta))
+    
+    while int(re.search(r'\s(\d+)/',rp).group(1)) == pagina_atual:
+        driver.find_element_by_xpath(r'//*[@id="formulario:tabelaDocumentos_paginator_top"]/a[3]/span').click()
+        time.sleep(1)
+        sp = bs(driver.page_source, 'html5lib')
+        rp = sp.find('span', attrs={'class' :'ui-paginator-current'}).get_text()
+        
+    parser(sp)
+    pagina_atual +=1
+    
+    
+df = pd.DataFrame(coleta)
+df.index.name = 'index'
+df.to_csv(r'D:\Onedrive\Projetos\CVM\Dataframes\jurisprudencia\tribunais_federais\%s.csv' %termo)
+    
+
